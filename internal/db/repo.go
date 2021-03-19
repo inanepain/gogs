@@ -174,7 +174,10 @@ type Repository struct {
 	NumTags             int `xorm:"-" gorm:"-" json:"-"`
 
 	IsPrivate bool
-	IsBare    bool
+	// TODO: When migrate to GORM, make sure to do a loose migration with `HasColumn` and `AddColumn`,
+	// see docs in https://gorm.io/docs/migration.html.
+	IsUnlisted bool `xorm:"NOT NULL DEFAULT false"`
+	IsBare     bool
 
 	IsMirror bool
 	*Mirror  `xorm:"-" gorm:"-" json:"-"`
@@ -426,24 +429,29 @@ func (repo *Repository) UpdateSize() error {
 	return nil
 }
 
-// ComposeMetas composes a map of metas for rendering external issue tracker URL.
+// ComposeMetas composes a map of metas for rendering SHA1 URL and external issue tracker URL.
 func (repo *Repository) ComposeMetas() map[string]string {
-	if !repo.EnableExternalTracker {
-		return nil
-	} else if repo.ExternalMetas == nil {
-		repo.ExternalMetas = map[string]string{
-			"format": repo.ExternalTrackerFormat,
-			"user":   repo.MustOwner().Name,
-			"repo":   repo.Name,
-		}
+	if repo.ExternalMetas != nil {
+		return repo.ExternalMetas
+	}
+
+	repo.ExternalMetas = map[string]string{
+		"repoLink": repo.Link(),
+	}
+
+	if repo.EnableExternalTracker {
+		repo.ExternalMetas["user"] = repo.MustOwner().Name
+		repo.ExternalMetas["repo"] = repo.Name
+		repo.ExternalMetas["format"] = repo.ExternalTrackerFormat
+
 		switch repo.ExternalTrackerStyle {
 		case markup.ISSUE_NAME_STYLE_ALPHANUMERIC:
 			repo.ExternalMetas["style"] = markup.ISSUE_NAME_STYLE_ALPHANUMERIC
 		default:
 			repo.ExternalMetas["style"] = markup.ISSUE_NAME_STYLE_NUMERIC
 		}
-
 	}
+
 	return repo.ExternalMetas
 }
 
@@ -547,8 +555,12 @@ func (repo *Repository) ComposeCompareURL(oldCommitID, newCommitID string) strin
 }
 
 func (repo *Repository) HasAccess(userID int64) bool {
-	has, _ := HasAccess(userID, repo, AccessModeRead)
-	return has
+	return Perms.Authorize(userID, repo.ID, AccessModeRead,
+		AccessModeOptions{
+			OwnerID: repo.OwnerID,
+			Private: repo.IsPrivate,
+		},
+	)
 }
 
 func (repo *Repository) IsOwnedBy(userID int64) bool {
@@ -717,6 +729,7 @@ type MigrateRepoOptions struct {
 	Name        string
 	Description string
 	IsPrivate   bool
+	IsUnlisted  bool
 	IsMirror    bool
 	RemoteAddr  string
 }
@@ -746,6 +759,7 @@ func MigrateRepository(doer, owner *User, opts MigrateRepoOptions) (*Repository,
 		Name:        opts.Name,
 		Description: opts.Description,
 		IsPrivate:   opts.IsPrivate,
+		IsUnlisted:  opts.IsUnlisted,
 		IsMirror:    opts.IsMirror,
 	})
 	if err != nil {
@@ -920,6 +934,7 @@ type CreateRepoOptions struct {
 	License     string
 	Readme      string
 	IsPrivate   bool
+	IsUnlisted  bool
 	IsMirror    bool
 	AutoInit    bool
 }
@@ -1131,6 +1146,7 @@ func CreateRepository(doer, owner *User, opts CreateRepoOptions) (_ *Repository,
 		LowerName:    strings.ToLower(opts.Name),
 		Description:  opts.Description,
 		IsPrivate:    opts.IsPrivate,
+		IsUnlisted:   opts.IsUnlisted,
 		EnableWiki:   true,
 		EnableIssues: true,
 		EnablePulls:  true,
@@ -1478,13 +1494,14 @@ func updateRepository(e Engine, repo *Repository, visibilityChanged bool) (err e
 		}
 		for i := range forkRepos {
 			forkRepos[i].IsPrivate = repo.IsPrivate
+			forkRepos[i].IsUnlisted = repo.IsUnlisted
 			if err = updateRepository(e, forkRepos[i], true); err != nil {
 				return fmt.Errorf("updateRepository[%d]: %v", forkRepos[i].ID, err)
 			}
 		}
 
 		// Change visibility of generated actions
-		if _, err = e.Where("repo_id = ?", repo.ID).Cols("is_private").Update(&Action{IsPrivate: repo.IsPrivate}); err != nil {
+		if _, err = e.Where("repo_id = ?", repo.ID).Cols("is_private").Update(&Action{IsPrivate: repo.IsPrivate || repo.IsUnlisted}); err != nil {
 			return fmt.Errorf("change action visibility of repository: %v", err)
 		}
 	}
@@ -1687,6 +1704,7 @@ func GetUserRepositories(opts *UserRepoOptions) ([]*Repository, error) {
 	sess := x.Where("owner_id=?", opts.UserID).Desc("updated_unix")
 	if !opts.Private {
 		sess.And("is_private=?", false)
+		sess.And("is_unlisted=?", false)
 	}
 
 	if opts.Page <= 0 {
@@ -1760,11 +1778,11 @@ func SearchRepositoryByName(opts *SearchRepoOptions) (repos []*Repository, count
 	// this does not include other people's private repositories even if opts.UserID is an admin.
 	if !opts.Private && opts.UserID > 0 {
 		sess.Join("LEFT", "access", "access.repo_id = repo.id").
-			Where("repo.owner_id = ? OR access.user_id = ? OR repo.is_private = ? OR (repo.is_private = ? AND (repo.allow_public_wiki = ? OR repo.allow_public_issues = ?))", opts.UserID, opts.UserID, false, true, true, true)
+			Where("repo.owner_id = ? OR access.user_id = ? OR (repo.is_private = ? AND repo.is_unlisted = ?) OR (repo.is_private = ? AND (repo.allow_public_wiki = ? OR repo.allow_public_issues = ?))", opts.UserID, opts.UserID, false, false, true, true, true)
 	} else {
 		// Only return public repositories if opts.Private is not set
 		if !opts.Private {
-			sess.And("repo.is_private = ? OR (repo.is_private = ? AND (repo.allow_public_wiki = ? OR repo.allow_public_issues = ?))", false, true, true, true)
+			sess.And("(repo.is_private = ? AND repo.is_unlisted = ?) OR (repo.is_private = ? AND (repo.allow_public_wiki = ? OR repo.allow_public_issues = ?))", false, false, true, true, true)
 		}
 	}
 	if len(opts.Keyword) > 0 {
@@ -2400,6 +2418,7 @@ func ForkRepository(doer, owner *User, baseRepo *Repository, name, desc string) 
 		Description:   desc,
 		DefaultBranch: baseRepo.DefaultBranch,
 		IsPrivate:     baseRepo.IsPrivate,
+		IsUnlisted:    baseRepo.IsUnlisted,
 		IsFork:        true,
 		ForkID:        baseRepo.ID,
 	}
@@ -2495,4 +2514,107 @@ func (repo *Repository) CreateNewBranch(oldBranch, newBranch string) (err error)
 	}
 
 	return nil
+}
+
+// Deprecated: Use Perms.SetRepoPerms instead.
+func (repo *Repository) refreshAccesses(e Engine, accessMap map[int64]AccessMode) (err error) {
+	newAccesses := make([]Access, 0, len(accessMap))
+	for userID, mode := range accessMap {
+		newAccesses = append(newAccesses, Access{
+			UserID: userID,
+			RepoID: repo.ID,
+			Mode:   mode,
+		})
+	}
+
+	// Delete old accesses and insert new ones for repository.
+	if _, err = e.Delete(&Access{RepoID: repo.ID}); err != nil {
+		return fmt.Errorf("delete old accesses: %v", err)
+	} else if _, err = e.Insert(newAccesses); err != nil {
+		return fmt.Errorf("insert new accesses: %v", err)
+	}
+	return nil
+}
+
+// refreshCollaboratorAccesses retrieves repository collaborations with their access modes.
+func (repo *Repository) refreshCollaboratorAccesses(e Engine, accessMap map[int64]AccessMode) error {
+	collaborations, err := repo.getCollaborations(e)
+	if err != nil {
+		return fmt.Errorf("getCollaborations: %v", err)
+	}
+	for _, c := range collaborations {
+		accessMap[c.UserID] = c.Mode
+	}
+	return nil
+}
+
+// recalculateTeamAccesses recalculates new accesses for teams of an organization
+// except the team whose ID is given. It is used to assign a team ID when
+// remove repository from that team.
+func (repo *Repository) recalculateTeamAccesses(e Engine, ignTeamID int64) (err error) {
+	accessMap := make(map[int64]AccessMode, 20)
+
+	if err = repo.getOwner(e); err != nil {
+		return err
+	} else if !repo.Owner.IsOrganization() {
+		return fmt.Errorf("owner is not an organization: %d", repo.OwnerID)
+	}
+
+	if err = repo.refreshCollaboratorAccesses(e, accessMap); err != nil {
+		return fmt.Errorf("refreshCollaboratorAccesses: %v", err)
+	}
+
+	if err = repo.Owner.getTeams(e); err != nil {
+		return err
+	}
+
+	maxAccessMode := func(modes ...AccessMode) AccessMode {
+		max := AccessModeNone
+		for _, mode := range modes {
+			if mode > max {
+				max = mode
+			}
+		}
+		return max
+	}
+
+	for _, t := range repo.Owner.Teams {
+		if t.ID == ignTeamID {
+			continue
+		}
+
+		// Owner team gets owner access, and skip for teams that do not
+		// have relations with repository.
+		if t.IsOwnerTeam() {
+			t.Authorize = AccessModeOwner
+		} else if !t.hasRepository(e, repo.ID) {
+			continue
+		}
+
+		if err = t.getMembers(e); err != nil {
+			return fmt.Errorf("getMembers '%d': %v", t.ID, err)
+		}
+		for _, m := range t.Members {
+			accessMap[m.ID] = maxAccessMode(accessMap[m.ID], t.Authorize)
+		}
+	}
+
+	return repo.refreshAccesses(e, accessMap)
+}
+
+func (repo *Repository) recalculateAccesses(e Engine) error {
+	if repo.Owner.IsOrganization() {
+		return repo.recalculateTeamAccesses(e, 0)
+	}
+
+	accessMap := make(map[int64]AccessMode, 10)
+	if err := repo.refreshCollaboratorAccesses(e, accessMap); err != nil {
+		return fmt.Errorf("refreshCollaboratorAccesses: %v", err)
+	}
+	return repo.refreshAccesses(e, accessMap)
+}
+
+// RecalculateAccesses recalculates all accesses for repository.
+func (repo *Repository) RecalculateAccesses() error {
+	return repo.recalculateAccesses(x)
 }

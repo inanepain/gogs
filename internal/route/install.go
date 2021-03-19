@@ -98,9 +98,10 @@ func GlobalInit(customConf string) error {
 	}
 
 	if conf.SSH.StartBuiltinServer {
-		ssh.Listen(conf.SSH.ListenHost, conf.SSH.ListenPort, conf.SSH.ServerCiphers)
+		ssh.Listen(conf.SSH.ListenHost, conf.SSH.ListenPort, conf.SSH.ServerCiphers, conf.SSH.ServerMACs)
 		log.Info("SSH server started on %s:%v", conf.SSH.ListenHost, conf.SSH.ListenPort)
 		log.Trace("SSH server cipher list: %v", conf.SSH.ServerCiphers)
+		log.Trace("SSH server MAC list: %v", conf.SSH.ServerMACs)
 	}
 
 	if conf.SSH.RewriteAuthorizedKeysAtStart {
@@ -121,7 +122,7 @@ func InstallInit(c *context.Context) {
 	c.Title("install.install")
 	c.PageIs("Install")
 
-	c.Data["DbOptions"] = []string{"MySQL", "PostgreSQL", "MSSQL", "SQLite3"}
+	c.Data["DbOptions"] = []string{"MySQL", "PostgreSQL", "SQLite3"}
 }
 
 func Install(c *context.Context) {
@@ -137,8 +138,6 @@ func Install(c *context.Context) {
 	switch conf.Database.Type {
 	case "mysql":
 		c.Data["CurDbOption"] = "MySQL"
-	case "mssql":
-		c.Data["CurDbOption"] = "MSSQL"
 	case "sqlite3":
 		c.Data["CurDbOption"] = "SQLite3"
 	}
@@ -210,7 +209,6 @@ func InstallPost(c *context.Context, f form.Install) {
 	dbTypes := map[string]string{
 		"PostgreSQL": "postgres",
 		"MySQL":      "mysql",
-		"MSSQL":      "mssql",
 		"SQLite3":    "sqlite3",
 	}
 	conf.Database.Type = dbTypes[f.DbType]
@@ -342,15 +340,14 @@ func InstallPost(c *context.Context, f form.Install) {
 	} else {
 		cfg.Section("mailer").Key("ENABLED").SetValue("false")
 	}
-	cfg.Section("service").Key("REGISTER_EMAIL_CONFIRM").SetValue(com.ToStr(f.RegisterConfirm))
-	cfg.Section("service").Key("ENABLE_NOTIFY_MAIL").SetValue(com.ToStr(f.MailNotify))
-
 	cfg.Section("server").Key("OFFLINE_MODE").SetValue(com.ToStr(f.OfflineMode))
+	cfg.Section("auth").Key("REQUIRE_EMAIL_CONFIRMATION").SetValue(com.ToStr(f.RegisterConfirm))
+	cfg.Section("auth").Key("DISABLE_REGISTRATION").SetValue(com.ToStr(f.DisableRegistration))
+	cfg.Section("auth").Key("ENABLE_REGISTRATION_CAPTCHA").SetValue(com.ToStr(f.EnableCaptcha))
+	cfg.Section("auth").Key("REQUIRE_SIGNIN_VIEW").SetValue(com.ToStr(f.RequireSignInView))
+	cfg.Section("user").Key("ENABLE_EMAIL_NOTIFICATION").SetValue(com.ToStr(f.MailNotify))
 	cfg.Section("picture").Key("DISABLE_GRAVATAR").SetValue(com.ToStr(f.DisableGravatar))
 	cfg.Section("picture").Key("ENABLE_FEDERATED_AVATAR").SetValue(com.ToStr(f.EnableFederatedAvatar))
-	cfg.Section("service").Key("DISABLE_REGISTRATION").SetValue(com.ToStr(f.DisableRegistration))
-	cfg.Section("service").Key("ENABLE_CAPTCHA").SetValue(com.ToStr(f.EnableCaptcha))
-	cfg.Section("service").Key("REQUIRE_SIGNIN_VIEW").SetValue(com.ToStr(f.RequireSignInView))
 
 	cfg.Section("").Key("RUN_MODE").SetValue("prod")
 

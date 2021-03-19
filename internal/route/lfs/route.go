@@ -11,6 +11,7 @@ import (
 	"gopkg.in/macaron.v1"
 	log "unknwon.dev/clog/v2"
 
+	"gogs.io/gogs/internal/auth"
 	"gogs.io/gogs/internal/authutil"
 	"gogs.io/gogs/internal/conf"
 	"gogs.io/gogs/internal/db"
@@ -59,7 +60,7 @@ func authenticate() macaron.Handler {
 		}
 
 		user, err := db.Users.Authenticate(username, password, -1)
-		if err != nil && !db.IsErrUserNotExist(err) {
+		if err != nil && !auth.IsErrBadCredentials(err) {
 			internalServerError(c.Resp)
 			log.Error("Failed to authenticate user [name: %s]: %v", username, err)
 			return
@@ -71,7 +72,7 @@ func authenticate() macaron.Handler {
 		}
 
 		// If username and password authentication failed, try again using username as an access token.
-		if db.IsErrUserNotExist(err) {
+		if auth.IsErrBadCredentials(err) {
 			token, err := db.AccessTokens.GetBySHA(username)
 			if err != nil {
 				if db.IsErrAccessTokenNotExist(err) {
@@ -130,10 +131,17 @@ func authorize(mode db.AccessMode) macaron.Handler {
 			return
 		}
 
-		if !db.Perms.Authorize(actor.ID, repo, mode) {
+		if !db.Perms.Authorize(actor.ID, repo.ID, mode,
+			db.AccessModeOptions{
+				OwnerID: repo.OwnerID,
+				Private: repo.IsPrivate,
+			},
+		) {
 			c.Status(http.StatusNotFound)
 			return
 		}
+
+		log.Trace("[LFS] Authorized user %q to %q", actor.Name, username+"/"+reponame)
 
 		c.Map(owner) // NOTE: Override actor
 		c.Map(repo)
@@ -144,10 +152,15 @@ func authorize(mode db.AccessMode) macaron.Handler {
 // When not, response given "failCode" as status code.
 func verifyHeader(key, value string, failCode int) macaron.Handler {
 	return func(c *macaron.Context) {
-		if !strings.Contains(c.Req.Header.Get(key), value) {
-			c.Status(failCode)
-			return
+		vals := c.Req.Header.Values(key)
+		for _, val := range vals {
+			if strings.Contains(val, value) {
+				return
+			}
 		}
+
+		log.Trace("[LFS] HTTP header %q does not contain value %q", key, value)
+		c.Status(failCode)
 	}
 }
 

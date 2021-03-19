@@ -11,9 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 
+	"gogs.io/gogs/internal/auth"
+	"gogs.io/gogs/internal/auth/github"
+	"gogs.io/gogs/internal/auth/pam"
 	"gogs.io/gogs/internal/cryptoutil"
 	"gogs.io/gogs/internal/lfsutil"
 	"gogs.io/gogs/internal/testutil"
@@ -26,11 +29,11 @@ func Test_dumpAndImport(t *testing.T) {
 
 	t.Parallel()
 
-	if len(tables) != 3 {
-		t.Fatalf("New table has added (want 3 got %d), please add new tests for the table and update this check", len(tables))
+	if len(Tables) != 4 {
+		t.Fatalf("New table has added (want 4 got %d), please add new tests for the table and update this check", len(Tables))
 	}
 
-	db := initTestDB(t, "dumpAndImport", tables...)
+	db := initTestDB(t, "dumpAndImport", Tables...)
 	setupDBToDump(t, db)
 	dumpTables(t, db)
 	importTables(t, db)
@@ -43,6 +46,19 @@ func setupDBToDump(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
 	vals := []interface{}{
+		&Access{
+			ID:     1,
+			UserID: 1,
+			RepoID: 11,
+			Mode:   AccessModeRead,
+		},
+		&Access{
+			ID:     2,
+			UserID: 2,
+			RepoID: 22,
+			Mode:   AccessModeWrite,
+		},
+
 		&AccessToken{
 			UserID:      1,
 			Name:        "test1",
@@ -79,22 +95,22 @@ func setupDBToDump(t *testing.T, db *gorm.DB) {
 		},
 
 		&LoginSource{
-			Type:      LoginPAM,
+			Type:      auth.PAM,
 			Name:      "My PAM",
 			IsActived: true,
-			Config: &PAMConfig{
+			Provider: pam.NewProvider(&pam.Config{
 				ServiceName: "PAM service",
-			},
+			}),
 			CreatedUnix: 1588568886,
 			UpdatedUnix: 1588572486, // 1 hour later
 		},
 		&LoginSource{
-			Type:      LoginGitHub,
+			Type:      auth.GitHub,
 			Name:      "GitHub.com",
 			IsActived: true,
-			Config: &GitHubConfig{
+			Provider: github.NewProvider(&github.Config{
 				APIEndpoint: "https://api.github.com",
-			},
+			}),
 			CreatedUnix: 1588568886,
 		},
 	}
@@ -109,7 +125,7 @@ func setupDBToDump(t *testing.T, db *gorm.DB) {
 func dumpTables(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	for _, table := range tables {
+	for _, table := range Tables {
 		tableName := getTableType(table)
 
 		var buf bytes.Buffer
@@ -126,7 +142,7 @@ func dumpTables(t *testing.T, db *gorm.DB) {
 func importTables(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	for _, table := range tables {
+	for _, table := range Tables {
 		tableName := getTableType(table)
 
 		err := func() error {

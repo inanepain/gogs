@@ -1,4 +1,4 @@
-# <img src="https://github.com/gogs/gogs/raw/master/public/img/favicon.png" width="45" align="left">Gogs - A painless self-hosted Git service
+# <img src="https://github.com/gogs/gogs/raw/main/public/img/favicon.png" width="45" align="left">Gogs - A painless self-hosted Git service
 
 [![GitHub Workflow Status](https://img.shields.io/github/workflow/status/gogs/gogs/Go?logo=github&style=for-the-badge)](https://github.com/gogs/gogs/actions?query=workflow%3AGo) [![Discord](https://img.shields.io/discord/382595433060499458.svg?style=for-the-badge&logo=discord)](https://discord.gg/9aqdHU7) [![Sourcegraph](https://img.shields.io/badge/view%20on-Sourcegraph-brightgreen.svg?style=for-the-badge&logo=sourcegraph)](https://sourcegraph.com/github.com/gogs/gogs)
 
@@ -56,7 +56,7 @@ There are 6 ways to install Gogs:
 - [Install from binary](https://gogs.io/docs/installation/install_from_binary.html)
 - [Install from source](https://gogs.io/docs/installation/install_from_source.html)
 - [Install from packages](https://gogs.io/docs/installation/install_from_packages.html)
-- [Ship with Docker](https://github.com/gogs/gogs/tree/master/docker)
+- [Ship with Docker](https://github.com/gogs/gogs/tree/main/docker)
 - [Install with Vagrant](https://github.com/geerlingguy/ansible-vagrant-examples/tree/master/gogs)
 - [Install with Kubernetes Using Helm Charts](https://github.com/helm/charts/tree/master/incubator/gogs)
 
@@ -72,6 +72,7 @@ There are 6 ways to install Gogs:
 
 ### Tutorials
 
+- [Private Git Web Portal in Raspberry PI With Gogs](https://peppe8o.com/private-git-web-portal-in-raspberry-pi-with-gogs/)
 - [How To Set Up Gogs on Ubuntu 14.04](https://www.digitalocean.com/community/tutorials/how-to-set-up-gogs-on-ubuntu-14-04)
 - [Run your own GitHub-like service with the help of Docker](http://blog.hypriot.com/post/run-your-own-github-like-service-with-docker/)
 - [Dockerized Gogs git server and alpine postgres in 20 minutes or less](http://garthwaite.org/docker-gogs.html)
@@ -88,8 +89,6 @@ There are 6 ways to install Gogs:
 - [Jenkins](https://plugins.jenkins.io/gogs-webhook/) (CI)
 - [Taiga](https://taiga.io/) (Project Management)
 - [Puppet](https://forge.puppet.com/Siteminds/gogs) (IT)
-- [Kanboard](https://github.com/kanboard/plugin-gogs-webhook) (Project Management)
-- [BearyChat](https://bearychat.com/) (Team Communication)
 - [GitPitch](https://gitpitch.com/) (Markdown Presentations)
 - [Synology](https://www.synology.com) (Docker)
 - [Syncloud](https://syncloud.org/) (App Store)
@@ -107,6 +106,6 @@ There are 6 ways to install Gogs:
 - See [contributors page](https://github.com/gogs/gogs/graphs/contributors) for top 100 contributors.
 - See [TRANSLATORS](conf/locale/TRANSLATORS) for public list of translators.
 
-## License
+## ⚖️ License
 
-This project is under the MIT License. See the [LICENSE](https://github.com/gogs/gogs/blob/master/LICENSE) file for the full license text.
+This project is under the MIT License. See the [LICENSE](https://github.com/gogs/gogs/blob/main/LICENSE) file for the full license text.

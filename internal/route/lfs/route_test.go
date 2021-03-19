@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/macaron.v1"
 
+	"gogs.io/gogs/internal/auth"
 	"gogs.io/gogs/internal/db"
 	"gogs.io/gogs/internal/lfsutil"
 )
@@ -70,7 +71,7 @@ func Test_authenticate(t *testing.T) {
 			},
 			mockUsersStore: &db.MockUsersStore{
 				MockAuthenticate: func(username, password string, loginSourceID int64) (*db.User, error) {
-					return nil, db.ErrUserNotExist{}
+					return nil, auth.ErrBadCredentials{}
 				},
 			},
 			mockAccessTokensStore: &db.MockAccessTokensStore{
@@ -112,7 +113,7 @@ func Test_authenticate(t *testing.T) {
 			},
 			mockUsersStore: &db.MockUsersStore{
 				MockAuthenticate: func(username, password string, loginSourceID int64) (*db.User, error) {
-					return nil, db.ErrUserNotExist{}
+					return nil, auth.ErrBadCredentials{}
 				},
 				MockGetByID: func(id int64) (*db.User, error) {
 					return &db.User{ID: 1, Name: "unknwon"}, nil
@@ -208,7 +209,7 @@ func Test_authorize(t *testing.T) {
 				},
 			},
 			mockPermsStore: &db.MockPermsStore{
-				MockAuthorize: func(userID int64, repo *db.Repository, desired db.AccessMode) bool {
+				MockAuthorize: func(userID, repoID int64, desired db.AccessMode, opts db.AccessModeOptions) bool {
 					return desired <= db.AccessModeRead
 				},
 			},
@@ -229,7 +230,7 @@ func Test_authorize(t *testing.T) {
 				},
 			},
 			mockPermsStore: &db.MockPermsStore{
-				MockAuthorize: func(userID int64, repo *db.Repository, desired db.AccessMode) bool {
+				MockAuthorize: func(userID, repoID int64, desired db.AccessMode, opts db.AccessModeOptions) bool {
 					return desired <= db.AccessModeRead
 				},
 			},

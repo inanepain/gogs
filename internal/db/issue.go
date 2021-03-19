@@ -408,6 +408,7 @@ func (issue *Issue) ReadBy(uid int64) error {
 }
 
 func updateIssueCols(e Engine, issue *Issue, cols ...string) error {
+	cols = append(cols, "updated_unix")
 	_, err := e.ID(issue.ID).Cols(cols...).Update(issue)
 	return err
 }
@@ -678,17 +679,12 @@ func newIssue(e *xorm.Session, opts NewIssueOptions) (err error) {
 			return fmt.Errorf("get user by ID: %v", err)
 		}
 
-		// Assume assignee is invalid and drop silently.
-		opts.Issue.AssigneeID = 0
 		if assignee != nil {
-			valid, err := hasAccess(e, assignee.ID, opts.Repo, AccessModeRead)
-			if err != nil {
-				return fmt.Errorf("hasAccess [user_id: %d, repo_id: %d]: %v", assignee.ID, opts.Repo.ID, err)
-			}
-			if valid {
-				opts.Issue.AssigneeID = assignee.ID
-				opts.Issue.Assignee = assignee
-			}
+			opts.Issue.AssigneeID = assignee.ID
+			opts.Issue.Assignee = assignee
+		} else {
+			// The assignee does not exist, drop it
+			opts.Issue.AssigneeID = 0
 		}
 	}
 
@@ -816,12 +812,11 @@ func (ErrIssueNotExist) NotFound() bool {
 	return true
 }
 
-// GetIssueByRef returns an Issue specified by a GFM reference.
-// See https://help.github.com/articles/writing-on-github#references for more information on the syntax.
+// GetIssueByRef returns an Issue specified by a GFM reference, e.g. owner/repo#123.
 func GetIssueByRef(ref string) (*Issue, error) {
 	n := strings.IndexByte(ref, byte('#'))
 	if n == -1 {
-		return nil, errors.InvalidIssueReference{Ref: ref}
+		return nil, ErrIssueNotExist{args: map[string]interface{}{"ref": ref}}
 	}
 
 	index := com.StrTo(ref[n+1:]).MustInt64()
@@ -1173,7 +1168,7 @@ func updateIssueMentions(e Engine, issueID int64, mentions []string) error {
 		}
 
 		memberIDs := make([]int64, 0, user.NumMembers)
-		orgUsers, err := getOrgUsersByOrgID(e, user.ID)
+		orgUsers, err := getOrgUsersByOrgID(e, user.ID, 0)
 		if err != nil {
 			return fmt.Errorf("getOrgUsersByOrgID [%d]: %v", user.ID, err)
 		}

@@ -57,9 +57,9 @@ var (
 	IssueCloseKeywords  = []string{"close", "closes", "closed", "fix", "fixes", "fixed", "resolve", "resolves", "resolved"}
 	IssueReopenKeywords = []string{"reopen", "reopens", "reopened"}
 
-	IssueCloseKeywordsPat     = lazyregexp.New(assembleKeywordsPattern(IssueCloseKeywords))
-	IssueReopenKeywordsPat    = lazyregexp.New(assembleKeywordsPattern(IssueReopenKeywords))
-	IssueReferenceKeywordsPat = lazyregexp.New(`(?i)(?:)(^| )\S+`)
+	IssueCloseKeywordsPat  = lazyregexp.New(assembleKeywordsPattern(IssueCloseKeywords))
+	IssueReopenKeywordsPat = lazyregexp.New(assembleKeywordsPattern(IssueReopenKeywords))
+	issueReferencePattern  = lazyregexp.New(`(?i)(?:)(^| )\S*#\d+`)
 )
 
 func assembleKeywordsPattern(words []string) string {
@@ -188,7 +188,7 @@ func newRepoAction(e Engine, doer, owner *User, repo *Repository) (err error) {
 		RepoID:       repo.ID,
 		RepoUserName: repo.Owner.Name,
 		RepoName:     repo.Name,
-		IsPrivate:    repo.IsPrivate,
+		IsPrivate:    repo.IsPrivate || repo.IsUnlisted,
 	})
 }
 
@@ -205,7 +205,7 @@ func renameRepoAction(e Engine, actUser *User, oldRepoName string, repo *Reposit
 		RepoID:       repo.ID,
 		RepoUserName: repo.Owner.Name,
 		RepoName:     repo.Name,
-		IsPrivate:    repo.IsPrivate,
+		IsPrivate:    repo.IsPrivate || repo.IsUnlisted,
 		Content:      oldRepoName,
 	}); err != nil {
 		return fmt.Errorf("notify watchers: %v", err)
@@ -321,8 +321,8 @@ func UpdateIssuesCommit(doer *User, repo *Repository, commits []*PushCommit) err
 		c := commits[i]
 
 		refMarked := make(map[int64]bool)
-		for _, ref := range IssueReferenceKeywordsPat.FindAllString(c.Message, -1) {
-			ref = ref[strings.IndexByte(ref, byte(' '))+1:]
+		for _, ref := range issueReferencePattern.FindAllString(c.Message, -1) {
+			ref = strings.TrimSpace(ref)
 			ref = strings.TrimRightFunc(ref, issueIndexTrimRight)
 
 			if len(ref) == 0 {
@@ -455,7 +455,7 @@ type CommitRepoActionOptions struct {
 	Commits     *PushCommits
 }
 
-// CommitRepoAction adds new commit actio to the repository, and prepare corresponding webhooks.
+// CommitRepoAction adds new commit action to the repository, and prepare corresponding webhooks.
 func CommitRepoAction(opts CommitRepoActionOptions) error {
 	pusher, err := GetUserByName(opts.PusherName)
 	if err != nil {
@@ -512,7 +512,7 @@ func CommitRepoAction(opts CommitRepoActionOptions) error {
 		RepoUserName: repo.MustOwner().Name,
 		RepoName:     repo.Name,
 		RefName:      refName,
-		IsPrivate:    repo.IsPrivate,
+		IsPrivate:    repo.IsPrivate || repo.IsUnlisted,
 	}
 
 	apiRepo := repo.APIFormat(nil)
@@ -628,7 +628,7 @@ func transferRepoAction(e Engine, doer, oldOwner *User, repo *Repository) (err e
 		RepoID:       repo.ID,
 		RepoUserName: repo.Owner.Name,
 		RepoName:     repo.Name,
-		IsPrivate:    repo.IsPrivate,
+		IsPrivate:    repo.IsPrivate || repo.IsUnlisted,
 		Content:      path.Join(oldOwner.Name, repo.Name),
 	}); err != nil {
 		return fmt.Errorf("notifyWatchers: %v", err)
@@ -659,7 +659,7 @@ func mergePullRequestAction(e Engine, doer *User, repo *Repository, issue *Issue
 		RepoID:       repo.ID,
 		RepoUserName: repo.Owner.Name,
 		RepoName:     repo.Name,
-		IsPrivate:    repo.IsPrivate,
+		IsPrivate:    repo.IsPrivate || repo.IsUnlisted,
 	})
 }
 
@@ -678,7 +678,7 @@ func mirrorSyncAction(opType ActionType, repo *Repository, refName string, data 
 		RepoUserName: repo.MustOwner().Name,
 		RepoName:     repo.Name,
 		RefName:      refName,
-		IsPrivate:    repo.IsPrivate,
+		IsPrivate:    repo.IsPrivate || repo.IsUnlisted,
 	})
 }
 

@@ -26,6 +26,7 @@ type CreateRepo struct {
 	UserID      int64  `binding:"Required"`
 	RepoName    string `binding:"Required;AlphaDashDot;MaxSize(100)"`
 	Private     bool
+	Unlisted    bool
 	Description string `binding:"MaxSize(512)"`
 	AutoInit    bool
 	Gitignores  string
@@ -45,6 +46,7 @@ type MigrateRepo struct {
 	RepoName     string `json:"repo_name" binding:"Required;AlphaDashDot;MaxSize(100)"`
 	Mirror       bool   `json:"mirror"`
 	Private      bool   `json:"private"`
+	Unlisted     bool   `json:"unlisted"`
 	Description  string `json:"description" binding:"MaxSize(512)"`
 }
 
@@ -70,6 +72,10 @@ func (f MigrateRepo) ParseRemoteAddr(user *db.User) (string, error) {
 		if len(f.AuthUsername)+len(f.AuthPassword) > 0 {
 			u.User = url.UserPassword(f.AuthUsername, f.AuthPassword)
 		}
+		// To prevent CRLF injection in git protocol, see https://github.com/gogs/gogs/issues/6413
+		if u.Scheme == "git" && (strings.Contains(remoteAddr, "%0d") || strings.Contains(remoteAddr, "%0a")) {
+			return "", db.ErrInvalidCloneAddr{IsURLError: true}
+		}
 		remoteAddr = u.String()
 	} else if !user.CanImportLocal() {
 		return "", db.ErrInvalidCloneAddr{IsPermissionDenied: true}
@@ -88,6 +94,7 @@ type RepoSetting struct {
 	Interval      int
 	MirrorAddress string
 	Private       bool
+	Unlisted      bool
 	EnablePrune   bool
 
 	// Advanced settings

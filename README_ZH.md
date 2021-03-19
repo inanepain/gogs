@@ -13,7 +13,7 @@ Gogs（`/gɑgz/`）项目旨在打造一个以最简便的方式搭建简单、�
 - 想要先睹为快？直接去[在线体验](https://try.gogs.io/gogs/gogs)吧！
 - 使用过程中遇到问题？尝试[故障排查](https://gogs.io/docs/intro/troubleshooting.html)或者前往[用户论坛](https://discuss.gogs.io/)获取帮助
 - 希望帮助多国语言的翻译吗？请查看[本地化文档](https://gogs.io/docs/features/i18n.html)
-- 准备搞点事情？请阅读[开发指南](docs/local_development.md)配置开发环境
+- 准备搞点事情？请阅读[开发指南](docs/dev/local_development.md)配置开发环境
 - 想调用 API 吗？请查看[文档](https://github.com/gogs/docs-api)吧
 
 ## 主要特性
@@ -53,7 +53,7 @@ Gogs（`/gɑgz/`）项目旨在打造一个以最简便的方式搭建简单、�
 - [二进制安装](https://gogs.io/docs/installation/install_from_binary.html)
 - [源码安装](https://gogs.io/docs/installation/install_from_source.html)
 - [包管理安装](https://gogs.io/docs/installation/install_from_packages.html)
-- [采用 Docker 部署](https://github.com/gogs/gogs/tree/master/docker)
+- [采用 Docker 部署](https://github.com/gogs/gogs/tree/main/docker)
 - [通过 Vagrant 安装](https://github.com/geerlingguy/ansible-vagrant-examples/tree/master/gogs)
 - [通过基于 Kubernetes 的 Helm Charts](https://github.com/helm/charts/tree/master/incubator/gogs)
 
@@ -100,4 +100,4 @@ Gogs（`/gɑgz/`）项目旨在打造一个以最简便的方式搭建简单、�
 
 ## 授权许可
 
-本项目采用 MIT 开源授权许可证，完整的授权说明已放置在 [LICENSE](https://github.com/gogs/gogs/blob/master/LICENSE) 文件中。
+本项目采用 MIT 开源授权许可证，完整的授权说明已放置在 [LICENSE](https://github.com/gogs/gogs/blob/main/LICENSE) 文件中。

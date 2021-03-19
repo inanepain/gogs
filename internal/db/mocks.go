@@ -134,17 +134,17 @@ func (m *mockLoginSourceFileStore) Save() error {
 var _ PermsStore = (*MockPermsStore)(nil)
 
 type MockPermsStore struct {
-	MockAccessMode   func(userID int64, repo *Repository) AccessMode
-	MockAuthorize    func(userID int64, repo *Repository, desired AccessMode) bool
+	MockAccessMode   func(userID, repoID int64, opts AccessModeOptions) AccessMode
+	MockAuthorize    func(userID, repoID int64, desired AccessMode, opts AccessModeOptions) bool
 	MockSetRepoPerms func(repoID int64, accessMap map[int64]AccessMode) error
 }
 
-func (m *MockPermsStore) AccessMode(userID int64, repo *Repository) AccessMode {
-	return m.MockAccessMode(userID, repo)
+func (m *MockPermsStore) AccessMode(userID, repoID int64, opts AccessModeOptions) AccessMode {
+	return m.MockAccessMode(userID, repoID, opts)
 }
 
-func (m *MockPermsStore) Authorize(userID int64, repo *Repository, desired AccessMode) bool {
-	return m.MockAuthorize(userID, repo, desired)
+func (m *MockPermsStore) Authorize(userID, repoID int64, desired AccessMode, opts AccessModeOptions) bool {
+	return m.MockAuthorize(userID, repoID, desired, opts)
 }
 
 func (m *MockPermsStore) SetRepoPerms(repoID int64, accessMap map[int64]AccessMode) error {
@@ -209,7 +209,7 @@ var _ UsersStore = (*MockUsersStore)(nil)
 
 type MockUsersStore struct {
 	MockAuthenticate  func(username, password string, loginSourceID int64) (*User, error)
-	MockCreate        func(opts CreateUserOpts) (*User, error)
+	MockCreate        func(username, email string, opts CreateUserOpts) (*User, error)
 	MockGetByEmail    func(email string) (*User, error)
 	MockGetByID       func(id int64) (*User, error)
 	MockGetByUsername func(username string) (*User, error)
@@ -219,8 +219,8 @@ func (m *MockUsersStore) Authenticate(username, password string, loginSourceID i
 	return m.MockAuthenticate(username, password, loginSourceID)
 }
 
-func (m *MockUsersStore) Create(opts CreateUserOpts) (*User, error) {
-	return m.MockCreate(opts)
+func (m *MockUsersStore) Create(username, email string, opts CreateUserOpts) (*User, error) {
+	return m.MockCreate(username, email, opts)
 }
 
 func (m *MockUsersStore) GetByEmail(email string) (*User, error) {

@@ -21,6 +21,7 @@ main() {
 		exit 1
 	fi
 
+	# shellcheck disable=SC2086
 	find "${BACKUP_PATH}/" -type f -name "gogs-backup-*.zip" -${FIND_EXPRESSION} -print -exec rm "{}" +
 }
 

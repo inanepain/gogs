@@ -1,8 +1,17 @@
 name: Go
 on:
   push:
-    branches: [master]
+    branches:
+      - main
+      - 'release/**'
+    paths:
+      - '**.go'
+      - 'go.mod'
   pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - '.github/workflows/go.yml'
 env:
   GOPROXY: "https://proxy.golang.org"
 
@@ -21,7 +30,7 @@ jobs:
     name: Test
     strategy:
       matrix:
-        go-version: [1.14.x]
+        go-version: [1.14.x, 1.15.x]
         platform: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.platform }}
     steps:

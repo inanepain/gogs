@@ -10,11 +10,16 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 	"gopkg.in/ini.v1"
 
+	"gogs.io/gogs/internal/auth"
+	"gogs.io/gogs/internal/auth/github"
+	"gogs.io/gogs/internal/auth/ldap"
+	"gogs.io/gogs/internal/auth/pam"
+	"gogs.io/gogs/internal/auth/smtp"
 	"gogs.io/gogs/internal/errutil"
 	"gogs.io/gogs/internal/osutil"
 )
@@ -39,6 +44,7 @@ var _ loginSourceFilesStore = (*loginSourceFiles)(nil)
 type loginSourceFiles struct {
 	sync.RWMutex
 	sources []*LoginSource
+	clock   func() time.Time
 }
 
 var _ errutil.NotFound = (*ErrLoginSourceNotExist)(nil)
@@ -98,7 +104,7 @@ func (s *loginSourceFiles) Update(source *LoginSource) {
 	s.Lock()
 	defer s.Unlock()
 
-	source.Updated = gorm.NowFunc()
+	source.Updated = s.clock()
 	for _, old := range s.sources {
 		if old.ID == source.ID {
 			*old = *source
@@ -109,12 +115,12 @@ func (s *loginSourceFiles) Update(source *LoginSource) {
 }
 
 // loadLoginSourceFiles loads login sources from file system.
-func loadLoginSourceFiles(authdPath string) (loginSourceFilesStore, error) {
+func loadLoginSourceFiles(authdPath string, clock func() time.Time) (loginSourceFilesStore, error) {
 	if !osutil.IsDir(authdPath) {
-		return &loginSourceFiles{}, nil
+		return &loginSourceFiles{clock: clock}, nil
 	}
 
-	store := &loginSourceFiles{}
+	store := &loginSourceFiles{clock: clock}
 	return store, filepath.Walk(authdPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -153,28 +159,55 @@ func loadLoginSourceFiles(authdPath string) (loginSourceFilesStore, error) {
 
 		// Parse authentication source file
 		authType := s.Key("type").String()
+		cfgSection := authSource.Section("config")
 		switch authType {
 		case "ldap_bind_dn":
-			loginSource.Type = LoginLDAP
-			loginSource.Config = &LDAPConfig{}
+			var cfg ldap.Config
+			err = cfgSection.MapTo(&cfg)
+			if err != nil {
+				return errors.Wrap(err, `map "config" section`)
+			}
+			loginSource.Type = auth.LDAP
+			loginSource.Provider = ldap.NewProvider(false, &cfg)
+
 		case "ldap_simple_auth":
-			loginSource.Type = LoginDLDAP
-			loginSource.Config = &LDAPConfig{}
+			var cfg ldap.Config
+			err = cfgSection.MapTo(&cfg)
+			if err != nil {
+				return errors.Wrap(err, `map "config" section`)
+			}
+			loginSource.Type = auth.DLDAP
+			loginSource.Provider = ldap.NewProvider(true, &cfg)
+
 		case "smtp":
-			loginSource.Type = LoginSMTP
-			loginSource.Config = &SMTPConfig{}
+			var cfg smtp.Config
+			err = cfgSection.MapTo(&cfg)
+			if err != nil {
+				return errors.Wrap(err, `map "config" section`)
+			}
+			loginSource.Type = auth.SMTP
+			loginSource.Provider = smtp.NewProvider(&cfg)
+
 		case "pam":
-			loginSource.Type = LoginPAM
-			loginSource.Config = &PAMConfig{}
+			var cfg pam.Config
+			err = cfgSection.MapTo(&cfg)
+			if err != nil {
+				return errors.Wrap(err, `map "config" section`)
+			}
+			loginSource.Type = auth.PAM
+			loginSource.Provider = pam.NewProvider(&cfg)
+
 		case "github":
-			loginSource.Type = LoginGitHub
-			loginSource.Config = &GitHubConfig{}
+			var cfg github.Config
+			err = cfgSection.MapTo(&cfg)
+			if err != nil {
+				return errors.Wrap(err, `map "config" section`)
+			}
+			loginSource.Type = auth.GitHub
+			loginSource.Provider = github.NewProvider(&cfg)
+
 		default:
 			return fmt.Errorf("unknown type %q", authType)
-		}
-
-		if err = authSource.Section("config").MapTo(loginSource.Config); err != nil {
-			return errors.Wrap(err, `map "config" section`)
 		}
 
 		store.sources = append(store.sources, loginSource)
